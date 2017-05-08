@@ -10,8 +10,8 @@ int main(int argc, char** argv)
 	bool use_adaptive = false;
 	int key = 0;
 	cv::namedWindow("MarkerCubes");
-	cv::createTrackbar("threshval", "MarkerCubes", &value, 255);
-	cv::createTrackbar("threshtype", "MarkerCubes", &type, 4);
+	cv::createTrackbar("Parameter 1", "MarkerCubes", &value, 255);
+	cv::createTrackbar("Parameter 2", "MarkerCubes", &type, 4);
 
 	cv::VideoCapture vc(0);
 	if (!vc.isOpened())
@@ -27,9 +27,13 @@ int main(int argc, char** argv)
 		vc >> frame;
 		cv::cvtColor(frame, frame, CV_BGR2GRAY);
 		if (use_adaptive)
-			cv::adaptiveThreshold(frame, frame, 255, cv::ADAPTIVE_THRESH_MEAN_C, type, 11, 2);
+		{
+			cv::adaptiveThreshold(frame, frame, 255, value, type, 11, 2); //adjust to lighting 
+		}
 		else
-			cv::threshold(frame, frame, value, 255, type);
+		{
+			cv::threshold(frame, frame, value, 255, type); //static - type 0 and 1 are BW - type 2,3 and 4 still keep the pixel value if they are above (?) the threshold 
+		}
 		
 
 		cv::imshow("MarkerCubes", frame);
@@ -40,7 +44,23 @@ int main(int argc, char** argv)
 			if (key == 27)
 				break;
 			if (key == 's')
+			{
 				use_adaptive = !use_adaptive;
+				if (use_adaptive)
+				{
+					cv::setTrackbarMax("Parameter 2", "MarkerCubes", 1);
+					cv::setTrackbarPos("Parameter 2", "MarkerCubes", 0);
+					cv::setTrackbarMax("Parameter 1", "MarkerCubes", 1);
+					cv::setTrackbarPos("Parameter 1", "MarkerCubes", 0);
+				}
+				else
+				{
+					cv::setTrackbarMax("Parameter 2", "MarkerCubes", 4);
+					cv::setTrackbarPos("Parameter 2", "MarkerCubes", 0);
+					cv::setTrackbarMax("Parameter 1", "MarkerCubes", 255);
+					cv::setTrackbarPos("Parameter 1", "MarkerCubes", 0);
+				}
+			}
 		}
 	}
 
