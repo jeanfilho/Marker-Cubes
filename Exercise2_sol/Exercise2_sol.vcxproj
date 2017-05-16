@@ -19,11 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{63ACBAA1-7443-491B-8EAD-BE0E17A860BB}</ProjectGuid>
+    <ProjectGuid>{8E3804D4-1143-4DC7-BB9E-B5F756644DAD}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>MarkerCubes</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
-    <ProjectName>Exercise2</ProjectName>
+    <ProjectName>Exercise2_sol</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
