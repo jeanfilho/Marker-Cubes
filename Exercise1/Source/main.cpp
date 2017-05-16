@@ -34,7 +34,7 @@ int main(int argc, char** argv)
 		{
 			cv::threshold(frame, frame, value, 255, type); //static - type 0 and 1 are BW - type 2,3 and 4 still keep the pixel value if they are above (?) the threshold 
 		}
-		
+
 
 		cv::imshow("MarkerCubes", frame);
 
