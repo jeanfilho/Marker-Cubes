@@ -39,9 +39,13 @@ int subpixSampleSafe(const Mat &pSrc, const Point2f &p)
 
 	int dx = int(256 * (p.x - floorf(p.x)));
 	int dy = int(256 * (p.y - floorf(p.y)));
-
+	
+	
+	/*
+	 * Idea: pixel value + influence from neighbors above and to the right
+	 */
 	unsigned char* i = (unsigned char*)((pSrc.data + y * pSrc.step) + x);
-	int a = i[0] + ((dx * (i[1] - i[0])) >> 8);
+	int a = i[0] + ((dx * (i[1] - i[0])) >> 8); // Division by 256 -> normalized
 	i += pSrc.step;
 	int b = i[0] + ((dx * (i[1] - i[0])) >> 8);
 	return a + ((dy * (b - a)) >> 8);
