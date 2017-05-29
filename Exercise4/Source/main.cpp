@@ -1,10 +1,10 @@
-
-
-
 #include <opencv/highgui.h>
+#include <opencv2\highgui\highgui.hpp>
 #include "opencv2\opencv.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2\imgproc.hpp"
+#include "opencv2\imgproc\imgproc.hpp"
 #include <stdio.h>
+#include <math.h>
 
 using namespace cv;
 
@@ -13,6 +13,7 @@ using namespace cv;
 using namespace std;
 
 
+/// Initializes camera stream and returns error messages if necessary
 void initVideoStream(VideoCapture &cap) {
 	if (cap.isOpened())
 		cap.release();
@@ -28,6 +29,163 @@ void initVideoStream(VideoCapture &cap) {
 	}
 }
 
+/// Fetches a 2D-Int Array containing the marker values and returns a string with the marker id
+string findSmallestMarkerID(int a[4][4])
+{
+	int results[4][4] = { {} };
+
+	for (int rotations = 0; rotations < 4; rotations++)
+	{
+		for (int i = 0; i < 4; i++)
+		{
+			for (int j = 0; j < 4; j++)
+			{
+				if (a[i][j] == 0)
+				{
+					switch (j) {
+					case(0):
+						results[rotations][i] += 8;
+						break;
+					case(1):
+						results[rotations][i] += 4;
+						break;
+					case(2):
+						results[rotations][i] += 2;
+						break;
+					case(3):
+						results[rotations][i] += 1;
+						break;
+					default:
+						break;
+					}
+				}
+			}
+		}
+
+		//Rotate the whole matrix by 90 degrees to fetch all possible IDs
+		int n = 4;
+		int tmp;
+		for (int i = 0; i<n / 2; i++) {
+			for (int j = i; j<n - i - 1; j++) {
+				tmp = a[i][j];
+				a[i][j] = a[j][n - i - 1];
+				a[j][n - i - 1] = a[n - i - 1][n - j - 1];
+				a[n - i - 1][n - j - 1] = a[n - j - 1][i];
+				a[n - j - 1][i] = tmp;
+			}
+		}
+	}
+
+
+	int lowest[4] = {};
+
+	//Iterate through all possible results
+	for (int i = 0; i < 4; i++)
+	{
+		if (i == 0)
+		{
+			lowest[0] = results[0][0];
+			lowest[1] = results[0][1];
+			lowest[2] = results[0][2];
+			lowest[3] = results[0][3];
+		}
+		else if (results[i][0] < lowest[0])
+		{
+			lowest[0] = results[i][0];
+			lowest[1] = results[i][1];
+			lowest[2] = results[i][2];
+			lowest[3] = results[i][3];
+		}
+	}
+
+	string res = "";
+
+	for (int i = 0; i < 4; i++)
+	{
+		stringstream ss;
+		ss << lowest[0] << "_" << lowest[1] << "_" << lowest[2] << "_" << lowest[3] << endl;
+		res = ss.str();
+	}
+
+	return res;
+}
+
+/// Returns truth-Value of intersection from two functions as well as the point of intersection
+bool intersection(Point2f o1, Point2f p1, Point2f o2, Point2f p2,
+	Point2f &r)
+{
+	Point2f x = o2 - o1;
+	Point2f d1 = p1 - o1;
+	Point2f d2 = p2 - o2;
+
+	float cross = d1.x*d2.y - d1.y*d2.x;
+	if (abs(cross) < /*EPS*/1e-8)
+		return false;
+
+	double t1 = (x.x * d2.y - x.y * d2.x) / cross;
+	r = o1 + d1 * t1;
+	return true;
+}
+
+/// Takes a given matrix containing a transformed marker and returns its specific identification number
+string checkMarkerID(Mat img)
+{
+	string result = "";
+
+	if (img.rows != 6 || img.cols != 6)
+	{
+		return "NoMarker";
+	}
+
+
+	///Ignore outer borders that aren't black. Our markers always have black borders for contrast reasons
+	for (int i = 0; i < 6; i++)
+	{
+		int pixel1 = img.at<uchar>(0, i);
+		int pixel2 = img.at<uchar>(5, i);
+		int pixel3 = img.at<uchar>(i, 0);
+		int pixel4 = img.at<uchar>(i, 5);
+		if ((pixel1 > 0) || (pixel2 > 0) || (pixel3 > 0) || (pixel4 > 0))
+		{
+			return "NoMarker";
+		}
+	}
+
+
+	//Save and store the respective pixel values in a 2D Array
+	int markerContent[6][6] = { {} };
+
+	for (int i = 0; i < 6; i++)
+	{
+		for (int j = 0; j < 6; j++)
+		{
+			markerContent[i][j] = img.at<uchar>(i, j);
+
+			if (markerContent[i][j] != 0)
+			{
+				markerContent[i][j] = 1;
+			}
+		}
+	}
+
+	//Remove all border values from our marker content arrays
+	int reduxMarkerContent[4][4] = { {} };
+
+	for (int i = 1; i < 5; i++)
+	{
+		for (int j = 1; j < 5; j++)
+		{
+			int tmp = markerContent[i][j];
+			reduxMarkerContent[i - 1][j - 1] = tmp;
+		}
+	}
+
+	//Send to helper function to make sure the smallest ID is found
+	result = findSmallestMarkerID(reduxMarkerContent);
+
+	return result;
+}
+
 int subpixSampleSafe(const Mat &pSrc, const Point2f &p)
 {
 	int x = int(floorf(p.x));
@@ -39,13 +197,9 @@ int subpixSampleSafe(const Mat &pSrc, const Point2f &p)
 
 	int dx = int(256 * (p.x - floorf(p.x)));
 	int dy = int(256 * (p.y - floorf(p.y)));
-	
-	
-	/*
-	 * Idea: pixel value + influence from neighbors above and to the right
-	 */
+
 	unsigned char* i = (unsigned char*)((pSrc.data + y * pSrc.step) + x);
-	int a = i[0] + ((dx * (i[1] - i[0])) >> 8); // Division by 256 -> normalized
+	int a = i[0] + ((dx * (i[1] - i[0])) >> 8);
 	i += pSrc.step;
 	int b = i[0] + ((dx * (i[1] - i[0])) >> 8);
 	return a + ((dy * (b - a)) >> 8);
@@ -57,7 +211,7 @@ int main(int ac, char** av)
 
 	const string kWinName1 = "Exercise 3 - Original Image";
 	const string kWinName2 = "Exercise 3 - Converted Image";
-	const string kWinName3 = "Exercise 3 - Stripe Image";
+	const string kWinName3 = "Exercise 4 - Marker Image Extracted";
 
 	namedWindow(kWinName1, CV_WINDOW_AUTOSIZE);
 	namedWindow(kWinName2, CV_WINDOW_NORMAL);
@@ -124,9 +278,18 @@ int main(int ac, char** av)
 				CV_AA);		// Draw ANTI-ALIASED Line
 
 							//Go through our different edges
+
+			float lineParams[16];
+			cv::Mat lineParamsMat(cv::Size(4, 4), CV_32F, lineParams); // lineParams is shared
+
+			Point firstEdgePoints[2];
+			vector<Point> lastEdgePoints = vector<Point>();
+			Point2f subPixelCorners[4];
+
 			for (int i = 0; i<4; ++i)
 			{
 				circle(img_bgr, rect[i], 3, Scalar(0, 255, 0), -1);
+				Point currCornerPt = rect[i];
 
 				//Difference in X and Y of this current point and the next point in polygon
 				double dx = (double)(rect[(i + 1) % 4].x - rect[i].x) / 7.0;
@@ -137,11 +300,8 @@ int main(int ac, char** av)
 					stripeLength = 5;
 
 				//make stripeLength odd (because of the shift in nStop)
-				//stripeLength |= 1;
 				stripeLength = stripeLength | 1;
 
-				//e.g. stripeLength = 5 --> from -2 to 2
-				// >> = Shift Right Operation (By 1 in this case)
 				int nStop = stripeLength >> 1;
 				int nStart = -nStop;
 
@@ -161,8 +321,11 @@ int main(int ac, char** av)
 
 				Mat iplStripe(stripeSize, CV_8UC1);
 
+
+				vector<Point> inputPoints = vector<Point>();
 				// Array for edge point centers
 				Point2f points[6];
+
 
 				for (int j = 1; j<7; ++j)
 				{
@@ -177,6 +340,7 @@ int main(int ac, char** av)
 
 					for (int m = -1; m <= 1; ++m)
 					{
+
 						for (int n = nStart; n <= nStop; ++n)
 						{
 							Point2f subPixel;
@@ -192,7 +356,7 @@ int main(int ac, char** av)
 							if (isFirstStripe)
 								circle(img_bgr, p2, 1, CV_RGB(255, 0, 255), -1);
 							else
-								circle(img_bgr, p2, 1, CV_RGB(0, 255, 255), -1);
+								circle(img_bgr, p2, 1, CV_RGB(0, 0, 255), -1);
 
 							int pixel = subpixSampleSafe(img_gray, subPixel);
 
@@ -263,17 +427,101 @@ int main(int ac, char** av)
 					edgeCenter.x = (double)p.x + (((double)maxIndexShift + pos) * stripeVecY.x);
 					edgeCenter.y = (double)p.y + (((double)maxIndexShift + pos) * stripeVecY.y);
 
+					points[j - 1].x = edgeCenter.x;
+					points[j - 1].y = edgeCenter.y;
+
 					if (isFirstStripe)
 					{
 						Mat iplTmp;
 						resize(iplStripe, iplTmp, Size(100, 300));
-						imshow(kWinName3, iplTmp);
+						//imshow(kWinName3, iplTmp);
 						isFirstStripe = false;
 					}
 
+					inputPoints.push_back(p);
+
+
+
 				} // end of loop over edge points of one edge
 
+				if (inputPoints.capacity() == 0)
+				{
+					continue;
+				}
+
+
+				vector<float> lineDrawn = vector<float>();
+				fitLine(inputPoints, lineDrawn, CV_DIST_L2, 0, 0.01, 0.01);
+
+
+
+				float lineDistance = (rect[1].x - rect[0].x) * 10;
+
+
+				//Midpoint of fitted Line
+				Point midPoint = Point(lineDrawn[2], lineDrawn[3]);
+				//Direction Vector of fitted line
+				Vec2f dir = Vec2f(lineDrawn[0], lineDrawn[1]);
+				//Applying distance variable
+				dir *= lineDistance;
+				//Determining left and right border corners
+				Point firstPoint = Point(midPoint.x + dir[0], midPoint.y + dir[1]);
+				Point secondPoint = Point(midPoint.x - dir[0], midPoint.y - dir[1]);
+				//Drawing the line
+				line(img_bgr, firstPoint, secondPoint, CV_RGB(0, 255, 255), 1, CV_AA);
+
+				inputPoints.clear();
+
+
+				//First one doesn't have a precursor to work with
+				if (lastEdgePoints.capacity() != 0)
+				{
+					Point2f intersect;
+					intersection(lastEdgePoints[0], lastEdgePoints[1], firstPoint, secondPoint, intersect);
+					circle(img_bgr, intersect, 3, CV_RGB(0, 255, 0), 3);
+					subPixelCorners[i] = intersect;
+				}
+
+				else
+				{
+					firstEdgePoints[0] = firstPoint;
+					firstEdgePoints[1] = secondPoint;
+				}
+
+				lastEdgePoints.clear();
+				lastEdgePoints.push_back(firstPoint);
+				lastEdgePoints.push_back(secondPoint);
+
+				if (i == 3)
+				{
+					Point2f intersect;
+					intersection(firstEdgePoints[0], firstEdgePoints[1], firstPoint, secondPoint, intersect);
+					circle(img_bgr, intersect, 3, CV_RGB(0, 255, 0), 3);
+					subPixelCorners[0] = intersect;
+				}
+
+
 			} // end of loop over the 4 edges
+
+			Point2f transformPts[4];
+			transformPts[0] = Point2f(-0.5, -0.5);
+			transformPts[1] = Point2f(-0.5, 5.5);
+			transformPts[2] = Point2f(5.5, 5.5);
+			transformPts[3] = Point2f(5.5, -0.5);
+			Mat transformMat = getPerspectiveTransform(subPixelCorners, transformPts);
+
+			Mat markerImage = Mat(Size(6, 6), CV_16SC3);
+			warpPerspective(img_gray, markerImage, transformMat, Size(6, 6));
+
+			threshold(markerImage, markerImage, 55, 255, CV_THRESH_BINARY);
+
+			string id = checkMarkerID(markerImage);
+
+			cout << id << endl;
+
+
+
+			imshow(kWinName3, markerImage);
 
 		} // end of loop over contours
 
