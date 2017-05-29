@@ -79,7 +79,7 @@ string findSmallestMarkerID(int a[4][4])
 
 	int lowest[4] = {};
 
-	//Iterate through all possible results
+	//Iterate through all possible results - get the orientation where the first line has the smallest sum
 	for (int i = 0; i < 4; i++)
 	{
 		if (i == 0)
@@ -472,7 +472,9 @@ int main(int ac, char** av)
 
 				inputPoints.clear();
 
-
+				/*
+				Until now, lines are just drawn - here: calculate intersections of all edges
+				*/
 				//First one doesn't have a precursor to work with
 				if (lastEdgePoints.capacity() != 0)
 				{
@@ -492,6 +494,9 @@ int main(int ac, char** av)
 				lastEdgePoints.push_back(firstPoint);
 				lastEdgePoints.push_back(secondPoint);
 
+				/*
+				Find the last intersection between the last edge and the first edge
+				*/
 				if (i == 3)
 				{
 					Point2f intersect;
@@ -503,6 +508,9 @@ int main(int ac, char** av)
 
 			} // end of loop over the 4 edges
 
+			/*
+			Define known distances between the points in the marker, so that the persp transf can retrieve the proper sized marker
+			*/
 			Point2f transformPts[4];
 			transformPts[0] = Point2f(-0.5, -0.5);
 			transformPts[1] = Point2f(-0.5, 5.5);
